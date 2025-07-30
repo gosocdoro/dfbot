@@ -1,10 +1,16 @@
 import axios from 'axios';
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
+  console.log("Slack Interactivity Triggered:", req.method);
+
+  if (req.method !== 'POST') {
+    return res.status(200).send('OK'); // Slack 재시도 방지
+  }
 
   let payload = {};
   if (req.body?.payload) payload = JSON.parse(req.body.payload);
+
+  console.log("Payload:", payload);
 
   if (
     payload.type === 'block_actions' &&
@@ -12,36 +18,20 @@ export default async function handler(req, res) {
   ) {
     const userId = payload.user.id;
     const channelId = payload.channel.id;
+    const messageTs = payload.message.thread_ts || payload.message.ts;
 
     try {
-      // 1️⃣ pins.list에서 ts만 가져오기
-      const pins = await axios.get('https://slack.com/api/pins.list', {
+      // 스레드 댓글 읽기
+      const replies = await axios.get('https://slack.com/api/conversations.replies', {
         headers: { Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` },
-        params: { channel: channelId }
+        params: { channel: channelId, ts: messageTs }
       });
 
-      const pinData = pins.data;
-      if (!pinData.ok || !pinData.items || pinData.items.length === 0) {
-        console.log("No pinned messages");
-        res.status(200).send('');
-        return;
-      }
+      const items = replies.data.messages
+        .slice(1)
+        .map(m => m.text.trim())
+        .filter(Boolean);
 
-      const pinned = pinData.items.find(i => i.type === 'message');
-      const targetTs = pinned?.message.ts;
-
-      // 2️⃣ conversations.history에서 해당 ts의 최신 메시지 가져오기
-      const history = await axios.get('https://slack.com/api/conversations.history', {
-        headers: { Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` },
-        params: { channel: channelId, limit: 50 }
-      });
-
-      let latestMsg = history.data.messages.find(m => m.ts === targetTs);
-
-      // ✅ fallback: pins.list 텍스트 사용
-      let text = latestMsg?.text || pinned.message.text;
-
-      const items = text.split('\n').filter(line => line.trim() !== '');
       const options = items.map((line, idx) => ({
         text: { type: "plain_text", text: line },
         value: `task_${idx}`
@@ -60,9 +50,9 @@ export default async function handler(req, res) {
       });
 
     } catch (err) {
-      console.error("Pins+History error:", err.response?.data || err.message);
+      console.error("Replies error:", err.response?.data || err.message);
     }
   }
 
-  res.status(200).send('');
+  res.status(200).send('OK');
 }
