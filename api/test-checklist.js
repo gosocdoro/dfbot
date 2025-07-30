@@ -2,24 +2,27 @@ import axios from 'axios';
 
 export default async function handler(req, res) {
   try {
-    
-console.log("Channel ID:", channelId);
-console.log("History data:", history.data);
-    
-    const channelId = process.C08F6G8EBK7; // 테스트 채널 ID
+    // 환경변수에서 채널 ID 가져오기
+    const channelId = process.env.SLACK_CHANNEL_ID;
+    if (!channelId) {
+      return res.status(500).json({ error: "SLACK_CHANNEL_ID is missing" });
+    }
 
-    // 1. 최신 "이번 주 체크리스트" 메시지 검색
+    // 최신 메시지 검색
     const history = await axios.get('https://slack.com/api/conversations.history', {
       headers: { Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` },
       params: { channel: channelId, limit: 5 }
     });
 
+    console.log("Channel ID:", channelId);
+    console.log("History:", history.data);
+
     const baseMsg = history.data.messages.find(m => m.text.includes("이번 주 체크리스트"));
-    if (!baseMsg) return res.status(404).send("No checklist message found");
+    if (!baseMsg) return res.status(404).json({ error: "No checklist message found" });
 
     const baseTs = baseMsg.ts;
 
-    // 2. 버튼 댓글 추가
+    // 버튼 댓글 추가
     const resp = await axios.post('https://slack.com/api/chat.postMessage', {
       channel: channelId,
       thread_ts: baseTs,
@@ -34,15 +37,3 @@ console.log("History data:", history.data);
               action_id: "get_checklist"
             }
           ]
-        }
-      ]
-    }, {
-      headers: { Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` }
-    });
-
-    res.status(200).send(`Button added: ${resp.data.ok}`);
-  } catch (err) {
-    console.error("Error detail:", err.response?.data || err.message);
-    res.status(500).json({ error: err.response?.data || err.message });
-  }
-}
