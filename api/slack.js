@@ -14,7 +14,7 @@ export default async function handler(req, res) {
     const channelId = payload.channel.id;
 
     try {
-      // 1️⃣ 핀 메시지 목록 가져오기
+      // 1️⃣ pins.list에서 ts만 가져오기
       const pins = await axios.get('https://slack.com/api/pins.list', {
         headers: { Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` },
         params: { channel: channelId }
@@ -30,14 +30,16 @@ export default async function handler(req, res) {
       const pinned = pinData.items.find(i => i.type === 'message');
       const targetTs = pinned?.message.ts;
 
-      // 2️⃣ conversations.history에서 최신 텍스트 조회
+      // 2️⃣ conversations.history에서 해당 ts의 최신 메시지 가져오기
       const history = await axios.get('https://slack.com/api/conversations.history', {
         headers: { Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` },
         params: { channel: channelId, limit: 50 }
       });
 
-      const latestMsg = history.data.messages.find(m => m.ts === targetTs);
-      const text = latestMsg ? latestMsg.text : '현재 핀된 체크리스트 메시지가 없습니다.';
+      let latestMsg = history.data.messages.find(m => m.ts === targetTs);
+
+      // ✅ fallback: pins.list 텍스트 사용
+      let text = latestMsg?.text || pinned.message.text;
 
       const items = text.split('\n').filter(line => line.trim() !== '');
       const options = items.map((line, idx) => ({
