@@ -2,7 +2,7 @@ import axios from 'axios';
 
 export default async function handler(req, res) {
   try {
-    const channelId = process.08F6G8EBK7; // 테스트 채널 ID
+    const channelId = process.C08F6G8EBK7; // 테스트 채널 ID
 
     // 1. 최신 "이번 주 체크리스트" 메시지 검색
     const history = await axios.get('https://slack.com/api/conversations.history', {
