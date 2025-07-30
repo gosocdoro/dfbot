@@ -14,31 +14,30 @@ export default async function handler(req, res) {
     const channelId = payload.channel.id;
 
     try {
+      // 1️⃣ 핀 메시지 목록 가져오기
       const pins = await axios.get('https://slack.com/api/pins.list', {
         headers: { Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` },
         params: { channel: channelId }
       });
 
       const pinData = pins.data;
-      console.log("Pins API raw:", pinData);
-
-      if (!pinData.ok) {
-        console.error("Pins API failed:", pinData.error);
+      if (!pinData.ok || !pinData.items || pinData.items.length === 0) {
+        console.log("No pinned messages");
         res.status(200).send('');
-        return; // ✅ 함수 내부에서만 사용
+        return;
       }
 
-      const pinnedMessages = (pinData.items || [])
-        .filter(item => item.type === 'message' && item.message.text);
+      const pinned = pinData.items.find(i => i.type === 'message');
+      const targetTs = pinned?.message.ts;
 
-      let checklistMsg = pinnedMessages.find(i => i.message.text.startsWith('[CHECKLIST]'));
-      if (!checklistMsg && pinnedMessages.length > 0) {
-        checklistMsg = pinnedMessages[0];
-      }
+      // 2️⃣ conversations.history에서 최신 텍스트 조회
+      const history = await axios.get('https://slack.com/api/conversations.history', {
+        headers: { Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` },
+        params: { channel: channelId, limit: 50 }
+      });
 
-      const text = checklistMsg
-        ? checklistMsg.message.text.replace(/^\[CHECKLIST\]\s*/, '')
-        : '현재 핀된 체크리스트 메시지가 없습니다.';
+      const latestMsg = history.data.messages.find(m => m.ts === targetTs);
+      const text = latestMsg ? latestMsg.text : '현재 핀된 체크리스트 메시지가 없습니다.';
 
       const items = text.split('\n').filter(line => line.trim() !== '');
       const options = items.map((line, idx) => ({
@@ -59,7 +58,7 @@ export default async function handler(req, res) {
       });
 
     } catch (err) {
-      console.error("Pins error:", err.response?.data || err.message);
+      console.error("Pins+History error:", err.response?.data || err.message);
     }
   }
 
