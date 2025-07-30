@@ -56,7 +56,7 @@ export default async function handler(req, res) {
           elements: [
             {
               type: "button",
-              text: { type: "plain_text", text: "던할일 체크리스트" },
+              text: { type: "plain_text", text: "✅" },
               action_id: "get_checklist"
             }
           ]
