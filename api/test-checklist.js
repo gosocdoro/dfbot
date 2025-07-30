@@ -1,28 +1,49 @@
 import axios from 'axios';
 
 export default async function handler(req, res) {
+  console.log("=== Test Checklist API Called ===");
+
   try {
-    // 환경변수에서 채널 ID 가져오기
     const channelId = process.env.SLACK_CHANNEL_ID;
-    if (!channelId) {
-      return res.status(500).json({ error: "SLACK_CHANNEL_ID is missing" });
+    const token = process.env.SLACK_BOT_TOKEN;
+
+    if (!channelId || !token) {
+      return res.status(500).json({
+        error: "Missing environment variables",
+        channelId,
+        tokenExists: !!token
+      });
     }
 
-    // 최신 메시지 검색
+    console.log("Using Channel ID:", channelId);
+
+    // 1. 채널의 최근 메시지 가져오기
     const history = await axios.get('https://slack.com/api/conversations.history', {
-      headers: { Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` },
+      headers: { Authorization: `Bearer ${token}` },
       params: { channel: channelId, limit: 5 }
     });
 
-    console.log("Channel ID:", channelId);
-    console.log("History:", history.data);
+    console.log("History API response:", history.data);
 
-    const baseMsg = history.data.messages.find(m => m.text.includes("이번 주 체크리스트"));
-    if (!baseMsg) return res.status(404).json({ error: "No checklist message found" });
+    if (!history.data.ok) {
+      return res.status(500).json({
+        error: "Slack history API failed",
+        response: history.data
+      });
+    }
+
+    const baseMsg = history.data.messages.find(m => m.text?.includes("이번 주 체크리스트"));
+    if (!baseMsg) {
+      return res.status(404).json({
+        error: "No checklist message found",
+        messages: history.data.messages
+      });
+    }
 
     const baseTs = baseMsg.ts;
+    console.log("Found base message TS:", baseTs);
 
-    // 버튼 댓글 추가
+    // 2. 버튼 댓글 추가
     const resp = await axios.post('https://slack.com/api/chat.postMessage', {
       channel: channelId,
       thread_ts: baseTs,
@@ -40,14 +61,30 @@ export default async function handler(req, res) {
         }
       ]
     }, {
-      headers: { Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` }
+      headers: { Authorization: `Bearer ${token}` }
     });
 
-    res.status(200).json({ ok: resp.data.ok, ts: baseTs });
- } catch (err) {
-  console.error("Error detail:", err.response?.data || err.message);
-  res.status(500).json({
-    error: err.response?.data || err.message,
-    stack: err.stack
-  });
+    console.log("PostMessage API response:", resp.data);
+
+    if (!resp.data.ok) {
+      return res.status(500).json({
+        error: "Slack postMessage API failed",
+        response: resp.data
+      });
+    }
+
+    res.status(200).json({
+      ok: true,
+      baseMessage: baseMsg.text,
+      baseTs,
+      slackResponse: resp.data
+    });
+
+  } catch (err) {
+    console.error("Caught Error:", err.response?.data || err.message);
+    res.status(500).json({
+      error: err.response?.data || err.message,
+      stack: err.stack
+    });
+  }
 }
