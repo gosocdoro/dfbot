@@ -1,90 +1,54 @@
 import axios from 'axios';
 
 export default async function handler(req, res) {
-  console.log("=== Test Checklist API Called ===");
+  if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
 
-  try {
-    const channelId = process.env.SLACK_CHANNEL_ID;
-    const token = process.env.SLACK_BOT_TOKEN;
+  let payload = {};
+  if (req.body?.payload) payload = JSON.parse(req.body.payload);
 
-    if (!channelId || !token) {
-      return res.status(500).json({
-        error: "Missing environment variables",
-        channelId,
-        tokenExists: !!token
+  // 버튼 클릭 이벤트 처리
+  if (
+    payload.type === 'block_actions' &&
+    payload.actions?.[0]?.action_id === 'get_checklist'
+  ) {
+    const userId = payload.user.id;
+    const channelId = payload.channel.id;
+    const messageTs = payload.message.thread_ts || payload.message.ts;
+
+    try {
+      // 스레드 댓글 읽기
+      const replies = await axios.get('https://slack.com/api/conversations.replies', {
+        headers: { Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` },
+        params: { channel: channelId, ts: messageTs }
       });
-    }
 
-    console.log("Using Channel ID:", channelId);
+      const items = replies.data.messages
+        .slice(1)
+        .map(m => m.text.trim())
+        .filter(Boolean);
 
-    // 1. 채널의 최근 메시지 가져오기
-    const history = await axios.get('https://slack.com/api/conversations.history', {
-      headers: { Authorization: `Bearer ${token}` },
-      params: { channel: channelId, limit: 5 }
-    });
+      const options = items.map((line, idx) => ({
+        text: { type: "plain_text", text: line },
+        value: `task_${idx}`
+      }));
 
-    console.log("History API response:", history.data);
-
-    if (!history.data.ok) {
-      return res.status(500).json({
-        error: "Slack history API failed",
-        response: history.data
+      // Ephemeral 체크리스트 발송
+      await axios.post('https://slack.com/api/chat.postEphemeral', {
+        channel: channelId,
+        user: userId,
+        text: '✅ 이번 주 체크리스트',
+        blocks: [
+          { type: "section", text: { type: "mrkdwn", text: "*이번 주 체크리스트*" } },
+          { type: "actions", elements: [{ type: "checkboxes", action_id: "checklist_action", options }] }
+        ]
+      }, {
+        headers: { Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` }
       });
+
+    } catch (err) {
+      console.error("Replies error:", err.response?.data || err.message);
     }
-
-    const baseMsg = history.data.messages.find(m => m.text?.includes("이번 주 체크리스트"));
-    if (!baseMsg) {
-      return res.status(404).json({
-        error: "No checklist message found",
-        messages: history.data.messages
-      });
-    }
-
-    const baseTs = baseMsg.ts;
-    console.log("Found base message TS:", baseTs);
-
-    // 2. 버튼 댓글 추가
-    const resp = await axios.post('https://slack.com/api/chat.postMessage', {
-      channel: channelId,
-      thread_ts: baseTs,
-      text: "체크리스트를 받으려면 버튼을 클릭하세요",
-      blocks: [
-        {
-          type: "actions",
-          elements: [
-            {
-              type: "button",
-              text: { type: "plain_text", text: "내 체크리스트 받기" },
-              action_id: "get_checklist"
-            }
-          ]
-        }
-      ]
-    }, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-
-    console.log("PostMessage API response:", resp.data);
-
-    if (!resp.data.ok) {
-      return res.status(500).json({
-        error: "Slack postMessage API failed",
-        response: resp.data
-      });
-    }
-
-    res.status(200).json({
-      ok: true,
-      baseMessage: baseMsg.text,
-      baseTs,
-      slackResponse: resp.data
-    });
-
-  } catch (err) {
-    console.error("Caught Error:", err.response?.data || err.message);
-    res.status(500).json({
-      error: err.response?.data || err.message,
-      stack: err.stack
-    });
   }
+
+  res.status(200).send('');
 }
