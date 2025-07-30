@@ -37,3 +37,17 @@ export default async function handler(req, res) {
               action_id: "get_checklist"
             }
           ]
+        }
+      ]
+    }, {
+      headers: { Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` }
+    });
+
+    res.status(200).json({ ok: resp.data.ok, ts: baseTs });
+ } catch (err) {
+  console.error("Error detail:", err.response?.data || err.message);
+  res.status(500).json({
+    error: err.response?.data || err.message,
+    stack: err.stack
+  });
+}
