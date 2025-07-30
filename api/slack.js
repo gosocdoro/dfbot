@@ -6,25 +6,28 @@ export default async function handler(req, res) {
   let payload = {};
   if (req.body?.payload) payload = JSON.parse(req.body.payload);
 
-  if (payload.type === 'block_actions' && payload.actions?.[0]?.action_id === 'get_checklist') {
+  // ✅ 버튼 클릭(action_id === 'get_checklist')일 때만 실행
+  if (
+    payload.type === 'block_actions' &&
+    payload.actions?.[0]?.action_id === 'get_checklist'
+  ) {
     const userId = payload.user.id;
     const channelId = payload.channel.id;
 
     try {
-      const history = await axios.get('https://slack.com/api/conversations.history', {
+      const pins = await axios.get('https://slack.com/api/pins.list', {
         headers: { Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` },
-        params: { channel: channelId, limit: 100 }
+        params: { channel: channelId }
       });
 
-      // ✅ pinned_to가 있는 메시지 필터링
-      const pinnedMessages = history.data.messages.filter(m => m.pinned_to);
+      const pinnedMessages = pins.data.items
+        .filter(item => item.type === 'message' && item.message.text);
 
-      // ✅ 특정 키워드 필터링 (예: [CHECKLIST])
-      const checklistMsg = pinnedMessages.find(m => m.text.startsWith('[CHECKLIST]')) 
+      const checklistMsg = pinnedMessages.find(i => i.message.text.startsWith('[CHECKLIST]'))
         || pinnedMessages[0];
 
       const text = checklistMsg
-        ? checklistMsg.text.replace(/^\[CHECKLIST\]\s*/,'')
+        ? checklistMsg.message.text.replace(/^\[CHECKLIST\]\s*/, '')
         : '현재 체크리스트 메시지가 없습니다.';
 
       const items = text.split('\n').filter(line => line.trim() !== '');
@@ -40,16 +43,17 @@ export default async function handler(req, res) {
         text: '✅ 이번 주 체크리스트',
         blocks: [
           { type: "section", text: { type: "mrkdwn", text: "*이번 주 체크리스트*" } },
-          { type: "actions", elements: [{ type: "checkboxes", options }] }
+          { type: "actions", elements: [{ type: "checkboxes", action_id: "checklist_action", options }] }
         ]
       }, {
         headers: { Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` }
       });
 
     } catch (err) {
-      console.error("History error:", err.response?.data || err.message);
+      console.error("Pins error:", err.response?.data || err.message);
     }
   }
 
+  // ✅ 체크박스 이벤트는 무시 → 기존 ephemeral 유지
   res.status(200).send('');
 }
