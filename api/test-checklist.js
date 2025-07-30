@@ -2,6 +2,10 @@ import axios from 'axios';
 
 export default async function handler(req, res) {
   try {
+    
+console.log("Channel ID:", channelId);
+console.log("History data:", history.data);
+    
     const channelId = process.C08F6G8EBK7; // 테스트 채널 ID
 
     // 1. 최신 "이번 주 체크리스트" 메시지 검색
@@ -38,7 +42,7 @@ export default async function handler(req, res) {
 
     res.status(200).send(`Button added: ${resp.data.ok}`);
   } catch (err) {
-    console.error(err.response?.data || err.message);
-    res.status(500).send("Error");
+    console.error("Error detail:", err.response?.data || err.message);
+    res.status(500).json({ error: err.response?.data || err.message });
   }
 }
