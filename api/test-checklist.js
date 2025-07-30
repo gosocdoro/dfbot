@@ -2,7 +2,7 @@ import axios from 'axios';
 
 export default async function handler(req, res) {
   console.log("ENV DEBUG:", {
-  SLACK_CHANNEL_ID: process.env.SLACK_CHANNEL_ID,
+  SLACK_CHANNEL_ID: process.C08F9TN83H9,
   SLACK_BOT_TOKEN: process.env.SLACK_BOT_TOKEN ? 'EXISTS' : 'MISSING'});
 
   try {
