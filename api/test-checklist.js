@@ -4,7 +4,7 @@ export default async function handler(req, res) {
   console.log("=== Test Checklist API Called ===");
 
   try {
-    const channelId = process.env.SLACK_CHANNEL_ID;
+    const channelId = process.C08F9TN83H9;
     const token = process.env.SLACK_BOT_TOKEN;
 
     if (!channelId || !token) {
@@ -32,7 +32,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const baseMsg = history.data.messages.find(m => m.text?.includes("이번 주 체크리스트"));
+    const baseMsg = history.data.messages.find(m => m.text?.includes("이번 주 던할일"));
     if (!baseMsg) {
       return res.status(404).json({
         error: "No checklist message found",
@@ -54,7 +54,7 @@ export default async function handler(req, res) {
           elements: [
             {
               type: "button",
-              text: { type: "plain_text", text: "내 체크리스트 받기" },
+              text: { type: "plain_text", text: "던할일 체크리스트" },
               action_id: "get_checklist"
             }
           ]
