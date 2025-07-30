@@ -50,7 +50,6 @@ export default async function handler(req, res) {
     const resp = await axios.post('https://slack.com/api/chat.postMessage', {
       channel: channelId,
       thread_ts: baseTs,
-      text: "체크리스트를 받으려면 버튼을 클릭하세요",
       blocks: [
         {
           type: "actions",
