@@ -23,7 +23,7 @@ export default async function handler(req, res) {
     // 1. 채널의 최근 메시지 가져오기
     const history = await axios.get('https://slack.com/api/conversations.history', {
       headers: { Authorization: `Bearer ${token}` },
-      params: { channel: channelId, limit: 5 }
+      params: { channel: channelId, limit: 10 }
     });
 
     console.log("History API response:", history.data);
